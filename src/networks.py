@@ -14,6 +14,7 @@ class NEURON_TYPE(Enum):
     IZH = 1
     MIZH = 2
     HH = 3
+    LIF = 4
 
 class network:
     def __init__(self, size=64, iter=10, eta=1.0, dt=1.0):

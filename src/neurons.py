@@ -32,6 +32,7 @@ class neuron:
         self.time_factor = 0.18
         self.spike_current = -1.0
         self.max_current = max_current
+        self.customized_name = ' '
 
     def set_refractory(self, time):
         self.refractory_time = time
@@ -159,8 +160,8 @@ class mizh_neuron(neuron):
 
     def step(self, I, dt=0.1):
         '''
-        根据Izh博士的论文，如果v超过了30mV，应该被设置为30mV。
-        '''
+                根据Izh博士的论文，如果v超过了30mV，应该被设置为30mV。
+                '''
         # temp = self.a1 * self.v ** 2 + self.a2 * self.v + self.a3
         # dv = (temp - self.u + I) * dt
         # du = self.a*( -temp - self.u) * dt
@@ -197,7 +198,7 @@ class mizh_neuron(neuron):
 
 class hh_neuron(neuron):
     '''
-    referred: https://blog.csdn.net/weixin_45834634/article/details/124434045
+    参考自：https://blog.csdn.net/weixin_45834634/article/details/124434045
     '''
     def __init__(self,
                  V_rest: float = -70,
@@ -281,7 +282,7 @@ class hh_neuron(neuron):
         self.alpha_h = 0.07 * np.exp(-1 * self.v / 20)
         self.beta_h = 1 / (np.exp((30 - self.v) / 10) + 1)
 
-        # conductance
+        # 电导率
         self.g_Na = self.m ** 3 * self.g_Na_max * self.h
         self.g_K = self.n ** 4 * self.g_K_max
 
@@ -293,7 +294,7 @@ class hh_neuron(neuron):
         # self.m = self.m + (self.alpha_m * (1 - self.m) - self.beta_m * self.m) * dt
         # self.n = self.n + (self.alpha_n * (1 - self.n) - self.beta_n * self.n) * dt
         # self.h = self.h + (self.alpha_h * (1 - self.h) - self.beta_h * self.h) * dt
-        # rk4
+        # 龙格库塔
         self.m = self.__update_var(self.m, dt, self.alpha_m, self.beta_m, self.__dm_dt)
         self.n = self.__update_var(self.n, dt, self.alpha_n, self.beta_n, self.__dn_dt)
         self.h = self.__update_var(self.h, dt, self.alpha_h, self.beta_h, self.__dh_dt)
@@ -306,13 +307,13 @@ class hh_neuron(neuron):
     def get_v(self):
         return self.v + self.V_rest
 
-# Deprecated.
+
 class lif_neuron(neuron):
     def __init__(self,
                  c:float=-62.0,
                 El:float=-60.0,
-                 gl:float=4.0e-6,
-                 Cex:float=0.5e-6,
+                 gl:float=2.0e-1,
+                 Cex:float=0.5e-0,
                  Vt:float = -58.0,
                  refractory_time = 0.1):
         super().__init__(0,0,c,0, refractory_time = refractory_time)
@@ -321,27 +322,61 @@ class lif_neuron(neuron):
         self.gl = gl
         self.Cex = Cex
         self.Vt = Vt
+        self.time_factor = 1
 
     def step(self, I, dt) -> float:
-        #dV/dt = (g_l * (E_l - V) + I_ext + I_rec + I_inh + I_c) / C_ex : volt
-        V = (self.gl * (self.El - self.v) + I)/self.Cex * dt
-        self.v = V
+        I = super().step(I = I, dt = dt)
+        dv = (self.gl * (self.El - self.v) + I)/self.Cex * dt
+        self.v += dv
+        # if self.v > self.Vt:
+        #     self.spike_current = 1.0
+        self._generate_current(dt)
         return self.v
 
     def threshold(self):
-        if self.v > self.Vt:
+        if self.v >= self.Vt:
             self.v = self.c
             return True
         return False
 
     def reset(self):
-        if self.v > self.Vt:
+        if self.v >= self.Vt:
+            self.on_refractory = True
+            self.current_refractory_time = self.refractory_time
+            self.spike_current = self.max_current
+            self.last_spike_time = self.current_time
             self.v = self.c
             return True
         return False
 
 
-    
+def simulate(n:neuron, dt = 0.1,t_max = 50, I_stimulus = 10.0, start_time = 0.0):
+    max_interval = (int)(t_max / dt)
+    time = np.arange(0, t_max, dt)
+    voltage_trace = np.zeros(max_interval)
+    I = np.zeros(max_interval)
+    I_start_index = (int)(start_time / dt)
+    I[I_start_index:] = I_stimulus
+
+    for t in range(max_interval):
+        n.reset()
+        voltage_trace[t] = n.step(I[t], dt)
+        # neuron.threshold()
+
+    plt.figure()
+    plt.subplot(2, 1, 1)
+    plt.plot(time, voltage_trace, color='black')
+    plt.title(f'{n.customized_name} Neuron Model')
+    plt.xlabel('Time (ms)')
+    plt.ylabel('Membrane Potential (mV)')
+
+    plt.subplot(2, 1, 2)
+    plt.plot(time, I, color='black')
+    plt.xlabel('Time (ms)')
+    plt.ylabel('Input Current (mV)')
+    plt.tight_layout()
+    # plt.savefig(f'Memristive Izhikevich Neuron Model.eps', format='eps')
+    plt.show()
 
 def simulate_for_mizh():
     izh = mizh_neuron(c=-65)
@@ -371,8 +406,6 @@ def simulate_for_mizh():
     plt.ylabel('Input Current (mV)')
     plt.tight_layout()
     plt.savefig(f'Memristive Izhikevich Neuron Model.eps', format='eps')
-    plt.show()
-
     plt.show()
 
 RS = [(0.02, 0.2, -65, 8), 'RS']
@@ -475,7 +508,7 @@ if __name__ == '__main__':
                  E_L: float = 10.6, # 
                  C_m: float = 1.0 # memberance capacity
         ):'''
-    simulate_for_hh()
+    # simulate_for_hh()
     # simulate_for_hh(g_L= 0.6)
     # simulate_for_hh(g_L = 0.15)
     # simulate_for_hh(E_K = -24)
@@ -486,27 +519,32 @@ if __name__ == '__main__':
     # simulate_for_hh(C_m = 2.0)
     # simulate_for_hh(C_m = 1e-1)
     # simulate_for_izh()
-    # izh = lif_neuron()
-    # t_max = 300
-    # dt = 0.01
-    # max_interval = (int)(t_max / dt)
-    # time = np.arange(0, t_max, dt)
-    # voltage_trace = np.zeros(max_interval)
-    # I = np.zeros(max_interval)
-    # I[10000:] = 0.0002
-    # for t in range(max_interval):
-    #     izh.reset()
-    #     voltage_trace[t] = izh.step(I[t], 0.1)
-    # plt.figure()
-    # plt.subplot(2, 1, 1)
-    # plt.plot(time, voltage_trace)
-    # plt.title(f'Memristive Izhikevich Neuron Model (DM)')
-    # plt.xlabel('Time (ms)')
-    # plt.ylabel('Membrane Potential ()')
-    # plt.subplot(2,1,2)
-    # plt.plot(time, I)
-    # plt.title("Current")
-    # plt.show()
+    izh = lif_neuron(c=-62.0,
+                El=-60.0,
+                 gl=2.0e-1,
+                 Cex=0.5e-0,
+                 Vt = -58.0,
+                refractory_time=10)
+    t_max = 300
+    dt = 0.05
+    max_interval = (int)(t_max / dt)
+    time = np.arange(0, t_max, dt)
+    voltage_trace = np.zeros(max_interval)
+    I = np.zeros(max_interval)
+    I[100:] = 0.5
+    for t in range(max_interval):
+        izh.reset()
+        voltage_trace[t] = izh.step(I[t], dt)
+    plt.figure()
+    plt.subplot(2, 1, 1)
+    plt.plot(time, voltage_trace)
+    plt.title(f'LIF Neuron Model')
+    plt.xlabel('Time (ms)')
+    plt.ylabel('Membrane Potential ()')
+    plt.subplot(2,1,2)
+    plt.plot(time, I)
+    plt.title("Current")
+    plt.show()
 
 
     # simulate_for_hh()
