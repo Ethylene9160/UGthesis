@@ -1,9 +1,9 @@
-from neurons import izh_neuron, mizh_neuron, hh_neuron
-from neurons import *
+from .neurons import izh_neuron, mizh_neuron, hh_neuron
+from .neurons import *
 import numpy as np
 from enum import Enum
 import matplotlib.pyplot as plt
-from Data import ONE, ZERO,TWO,SIX,INPUT_ZERO,INPUT_TWO,INPUT_ONE,INPUT_SIX
+from .Data import ONE, ZERO,TWO,SIX,INPUT_ZERO,INPUT_TWO,INPUT_ONE,INPUT_SIX
 
 from matplotlib import rc
 from matplotlib import rcParams
